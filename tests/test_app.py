@@ -72,10 +72,11 @@ def test_create_edit_save(root):
         await press(pilot, "d", "q", "n")  # Kürzel werden hier zu Text
         assert "ungespeichert" in str(app.query_one("#path", Label).content)
         await press(pilot, "ctrl+s")
-        assert (root / "neu.md").read_text() == "dqn"
+        text = (root / "neu.md").read_text()
+        assert text.startswith("dqn---\ntitle: neu\n")
         await press(pilot, "escape")
         assert app.editing is None and app.focused is app.tree_view
-        assert app.query_one(Markdown).source == "dqn"
+        assert app.query_one(Markdown).source == text
 
     drive(root, steps)
 
@@ -232,3 +233,22 @@ def test_external_change_is_picked_up(root):
         assert "extern.md" in [str(n.label) for n in app.tree_view.root.children]
 
     drive(root, steps)
+
+
+def test_hidden_files(root):
+    (root / ".geheim.yaml").write_text("a: 1\n")
+
+    async def steps(app, pilot):
+        names = lambda: [str(n.label) for n in app.tree_view.root.children]
+        assert ".geheim.yaml" in names()
+        assert app.query_one(Markdown).source == "```yaml\na: 1\n```\n"
+        await press(pilot, "e")
+        await press(pilot, "b", "ctrl+s")
+        assert (root / ".geheim.yaml").read_text() == "ba: 1\n"
+        await press(pilot, "escape")
+        await press(pilot, ".")
+        assert ".geheim.yaml" not in names() and app.selected == root
+        await press(pilot, ".")
+        assert ".geheim.yaml" in names()
+
+    drive(root, steps, start=root / ".geheim.yaml")

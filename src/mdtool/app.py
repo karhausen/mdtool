@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from textual import on, work
+from textual import events, on, work
 from textual.app import App, ComposeResult, SuspendNotSupported
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -33,12 +33,18 @@ from .store import (
     TrashError,
     is_markdown,
 )
+from .typing_aids import (
+    as_code,
+    frontmatter_as_code,
+    in_code_block,
+    next_list_prefix,
+)
 
 PREVIEW_LIMIT = 500_000  # Zeichen; größere Dateien würden die Vorschau blockieren
 
 
 class FileTree(DirectoryTree):
-    """Zeigt nur Ordner und Markdown-Dateien."""
+    """Zeigt Ordner, Markdown-Dateien und auf Wunsch Verstecktes."""
 
     def __init__(self, store: Store, **kwargs) -> None:
         super().__init__(store.root, **kwargs)
@@ -77,6 +83,60 @@ class Editor(TextArea):
         Binding("escape", "app.finish_edit", "Fertig", priority=True),
     ]
 
+    async def _on_key(self, event: events.Key) -> None:
+        # Textual ruft danach von selbst TextArea._on_key auf, außer bei
+        # prevent_default().
+        if self.selection.is_empty and self._assist(event):
+            event.stop()
+            event.prevent_default()
+
+    def _assist(self, event: events.Key) -> bool:
+        row, column = self.cursor_location
+        line = self.document.get_line(row)
+        before, after = line[:column], line[column:]
+        in_empty_pair = before.endswith("[") and after.startswith(" ]")
+        char = event.character
+
+        if event.key == "enter":
+            return self._continue_list(row, column, line)
+        if event.key == "backspace" and in_empty_pair:
+            self._put("", column - 1, column + 2)
+            return True
+        if char == "[":
+            # Cursor bleibt direkt hinter der Klammer.
+            self._put("[ ]", column, column)
+            self.move_cursor((row, column + 1))
+            return True
+        if in_empty_pair and char == "]":
+            self.move_cursor((row, column + 2))
+            return True
+        if in_empty_pair and char == " ":
+            self.move_cursor((row, column + 1))
+            return True
+        if in_empty_pair and char and event.is_printable:
+            self._put(char, column, column + 1)  # ersetzt das Leerzeichen
+            return True
+        if char == "]" and after.startswith("]") and "[" in before:
+            self.move_cursor((row, column + 1))
+            return True
+        return False
+
+    def _put(self, text: str, start: int, end: int) -> None:
+        row = self.cursor_location[0]
+        self.replace(text, (row, start), (row, end), maintain_selection_offset=False)
+
+    def _continue_list(self, row: int, column: int, line: str) -> bool:
+        prefix = next_list_prefix(line, column)
+        if prefix is None:
+            return False
+        if in_code_block([self.document.get_line(i) for i in range(row)]):
+            return False
+        if prefix:
+            self._put("\n" + prefix, column, column)
+        else:
+            self._put("", 0, len(line))  # leerer Punkt: Liste beenden
+        return True
+
 
 class MdToolApp(App[None]):
     TITLE = "mdtool"
@@ -112,6 +172,7 @@ class MdToolApp(App[None]):
         Binding("r", "rename", "Umbenennen"),
         Binding("m", "move", "Verschieben"),
         Binding("d", "delete", "Löschen"),
+        Binding("full_stop", "toggle_hidden", "Versteckte", show=False),
         Binding("f5", "refresh", "Neu laden", show=False),
         Binding("q", "quit", "Ende"),
     ]
@@ -173,6 +234,7 @@ class MdToolApp(App[None]):
             "move",
             "delete",
             "refresh",
+            "toggle_hidden",
         }
         return not (action in blocked and self.editing is not None)
 
@@ -190,7 +252,7 @@ class MdToolApp(App[None]):
 
     def selected_file(self) -> Path | None:
         path = self.selected
-        if path.is_dir() or not is_markdown(path):
+        if path.is_dir():
             self.info("Bitte zuerst eine Datei auswählen.")
             return None
         return path
@@ -227,6 +289,10 @@ class MdToolApp(App[None]):
                     text = "*Leere Datei. Mit* `e` *bearbeiten.*"
                 elif len(text) > PREVIEW_LIMIT:
                     text = "*Zu groß für die Vorschau. Mit* `e` *bearbeiten.*"
+                elif is_markdown(path):
+                    text = frontmatter_as_code(text)
+                else:
+                    text = as_code(text, path.suffix.lstrip("."))
             except StoreError as error:
                 text = f"**Fehler:** {error}"
         await self.query_one("#markdown", Markdown).update(text)
@@ -511,6 +577,14 @@ class MdToolApp(App[None]):
     async def action_refresh(self) -> None:
         path = self.selected
         await self._show(path if path.exists() else self.store.root)
+
+    @work(exclusive=True, group="action")
+    async def action_toggle_hidden(self) -> None:
+        path = self.selected
+        self.store.show_hidden = not self.store.show_hidden
+        state = "eingeblendet" if self.store.show_hidden else "ausgeblendet"
+        await self._show(path if self.store.listed(path) else self.store.root)
+        self.info(f"Versteckte Dateien {state}.")
 
     async def action_quit(self) -> None:
         # Bei offenem Dialog wird erst dieser beantwortet.

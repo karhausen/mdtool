@@ -11,6 +11,8 @@ from pathlib import Path
 
 from send2trash import send2trash
 
+from .templates import FOLDER_FILE, FOLDER_TEMPLATE, frontmatter
+
 MARKDOWN_SUFFIXES = {".md", ".markdown"}
 BOM = b"\xef\xbb\xbf"
 
@@ -39,6 +41,10 @@ def is_markdown(path: Path) -> bool:
     return path.suffix.lower() in MARKDOWN_SUFFIXES
 
 
+def is_hidden(name: str) -> bool:
+    return name.startswith(".")
+
+
 def _fingerprint(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -50,6 +56,7 @@ def _reason(error: OSError) -> str:
 class Store:
     def __init__(self, root: Path) -> None:
         self.root = Path(root).resolve()
+        self.show_hidden = True
         if not self.root.is_dir():
             raise StoreError(f"Kein Ordner: {self.root}")
 
@@ -73,11 +80,25 @@ class Store:
     def visible(self, path: Path) -> bool:
         """Soll der Eintrag im Baum erscheinen?"""
         try:
-            if path.name.startswith(".") or not self.contains(path):
+            if not self._shows_name(path.name) or not self.contains(path):
                 return False
-            return path.is_dir() or is_markdown(path)
+            return path.is_dir() or is_markdown(path) or is_hidden(path.name)
         except OSError:
             return False
+
+    def _shows_name(self, name: str) -> bool:
+        # Git-Interna bleiben immer ausgeblendet.
+        return name != ".git" and (self.show_hidden or not is_hidden(name))
+
+    def listed(self, path: Path) -> bool:
+        """Sichtbar, und liegt auch jeder Ordner darüber im sichtbaren Bereich?"""
+        if path == self.root:
+            return True
+        try:
+            parts = path.relative_to(self.root).parts
+        except ValueError:
+            return False
+        return all(map(self._shows_name, parts)) and self.visible(path)
 
     def _target(self, path: Path) -> Path:
         """Ziel zum Lesen oder Schreiben: Symlinks werden aufgelöst."""
@@ -100,8 +121,8 @@ class Store:
         name = name.strip()
         if not name:
             raise StoreError("Der Name darf nicht leer sein.")
-        if name.startswith("."):
-            raise StoreError("Der Name darf nicht mit einem Punkt beginnen.")
+        if name in (".", "..", ".git"):
+            raise StoreError(f"Der Name „{name}“ ist nicht erlaubt.")
         if any(c in "/\\" or not c.isprintable() for c in name):
             raise StoreError("Der Name enthält unzulässige Zeichen.")
         return name
@@ -109,7 +130,9 @@ class Store:
     @classmethod
     def _file_name(cls, name: str) -> str:
         name = cls._clean_name(name)
-        return name if is_markdown(Path(name)) else f"{name}.md"
+        if is_hidden(name) or is_markdown(Path(name)):
+            return name
+        return f"{name}.md"
 
     # -- Lesen und Schreiben -------------------------------------------------
 
@@ -175,8 +198,9 @@ class Store:
     def create_file(self, folder: Path, name: str) -> Path:
         path = self._entry(self._target(folder) / self._file_name(name))
         try:
-            with open(path, "x", encoding="utf-8"):
-                pass
+            with open(path, "x", encoding="utf-8", newline="\n") as handle:
+                if is_markdown(path):
+                    handle.write(frontmatter(path.stem))
         except FileExistsError:
             raise StoreError(f"„{path.name}“ existiert bereits.") from None
         except OSError as error:
@@ -191,6 +215,12 @@ class Store:
             raise StoreError(f"„{path.name}“ existiert bereits.") from None
         except OSError as error:
             raise StoreError(f"Anlegen fehlgeschlagen: {_reason(error)}") from error
+        try:
+            (path / FOLDER_FILE).write_text(FOLDER_TEMPLATE, "utf-8", newline="\n")
+        except OSError as error:
+            raise StoreError(
+                f"Ordner angelegt, aber {FOLDER_FILE} fehlt: {_reason(error)}"
+            ) from error
         return path
 
     def rename(self, path: Path, name: str) -> Path:
@@ -236,8 +266,7 @@ class Store:
         """(alle Einträge, davon im Tool nicht sichtbare) unterhalb des Ordners."""
         total = hidden = 0
         for base, dirs, files in os.walk(self._entry(folder)):
-            parts = Path(base).relative_to(self.root).parts
-            in_hidden = any(part.startswith(".") for part in parts)
+            in_hidden = not self.listed(Path(base))
             for name in dirs + files:
                 total += 1
                 if in_hidden or not self.visible(Path(base) / name):
@@ -272,7 +301,7 @@ class Store:
         """Alle sichtbaren Ordner; der zweite Wert meldet eine gekürzte Liste."""
         found = [self.root]
         for base, dirs, _ in os.walk(self.root):
-            dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+            dirs[:] = sorted(d for d in dirs if self._shows_name(d))
             for name in dirs:
                 path = Path(base) / name
                 if path.is_symlink():

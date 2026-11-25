@@ -1,0 +1,59 @@
+"""Schreibhilfen des Editors als reine Textfunktionen."""
+
+from __future__ import annotations
+
+import re
+
+LIST_ITEM = re.compile(
+    r"^(?P<indent>[ \t]*)(?P<marker>[-*+]|(?P<number>\d{1,9})(?P<delim>[.)]))"
+    r"(?P<space>[ \t]+)(?P<box>\[[ xX]\](?:[ \t]+|$))?(?P<content>.*)$"
+)
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+FRONTMATTER = re.compile(r"\A---[ \t]*\n(.*?)^(?:---|\.\.\.)[ \t]*(?:\n|\Z)", re.S | re.M)
+
+
+def in_code_block(lines_before: list[str]) -> bool:
+    """Steht die Zeile nach diesen Zeilen in einem offenen Codeblock?"""
+    fence = ""
+    for line in lines_before:
+        match = FENCE.match(line)
+        if match is None:
+            continue
+        marks, rest = match.groups()
+        if not fence:
+            if marks[0] == "~" or "`" not in rest:
+                fence = marks
+        elif marks[0] == fence[0] and len(marks) >= len(fence) and not rest.strip():
+            fence = ""
+    return bool(fence)
+
+
+def next_list_prefix(line: str, column: int) -> str | None:
+    """Was die neue Zeile nach Enter erhält.
+
+    None: keine Liste. Leerer Text: der Punkt ist leer, die Liste endet hier.
+    """
+    match = LIST_ITEM.match(line)
+    if match is None or column < match.start("content"):
+        return None
+    if not match["content"].strip():
+        return ""
+    marker = match["marker"]
+    if match["number"]:
+        marker = f"{int(match['number']) + 1}{match['delim']}"
+    box = "[ ] " if match["box"] else ""
+    return f"{match['indent']}{marker}{match['space']}{box}"
+
+
+def frontmatter_as_code(text: str) -> str:
+    """Zeigt Frontmatter in der Vorschau als YAML-Block statt als Überschrift."""
+    match = FRONTMATTER.match(text)
+    if match is None:
+        return text
+    return f"{as_code(match[1], 'yaml')}\n{text[match.end():]}"
+
+
+def as_code(text: str, language: str = "") -> str:
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return f"{fence}{language}\n{text.rstrip()}\n{fence}\n"

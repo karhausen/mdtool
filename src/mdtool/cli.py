@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 
 from . import __version__
-from .store import Store, is_markdown
+from .store import Store, is_hidden, is_markdown
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"Pfad nicht gefunden: {path}")
     start: Path | None = None
     if not path.is_dir():
-        if not is_markdown(path):
+        if not (is_markdown(path) or is_hidden(path.name)):
             parser.error(f"Keine Markdown-Datei: {path}")
         start = path.resolve()
         path = start.parent

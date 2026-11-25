@@ -22,7 +22,7 @@ def test_create_adds_suffix_and_never_overwrites(store):
     assert path.read_text() == "Inhalt"
 
 
-@pytest.mark.parametrize("name", ["", "  ", "..", "../x", "a/b", "a\\b", ".x", "a\nb"])
+@pytest.mark.parametrize("name", ["", "  ", "..", "../x", "a/b", "a\\b", ".git", "a\nb"])
 def test_bad_names(store, name):
     with pytest.raises(StoreError):
         store.create_file(store.root, name)
@@ -175,7 +175,7 @@ def test_count_contents(store):
     (folder / "bild.png").write_bytes(b"")
     (folder / ".git").mkdir()
     (folder / ".git" / "y.md").write_text("")
-    assert store.count_contents(folder) == (4, 3)
+    assert store.count_contents(folder) == (5, 3)
 
 
 def test_folders(store):
@@ -183,3 +183,24 @@ def test_folders(store):
     (store.root / ".git").mkdir()
     assert store.folders() == ([store.root, store.root / "a", b], False)
     assert store.folders(limit=2)[1] is True
+
+
+def test_hidden_entries(store):
+    hidden = store.root / ".pandora.yaml"
+    hidden.write_text("a: 1")
+    inside = store.create_folder(store.root, ".versteckt") / "x.md"
+    inside.write_text("")
+    git = store.root / ".git"
+    git.mkdir()
+    assert store.visible(hidden) and store.listed(inside)
+    assert not store.visible(git) and not store.listed(git / "x.md")
+    assert not store.visible(store.root / "bild.png")
+    store.show_hidden = False
+    assert not store.visible(hidden) and not store.listed(inside)
+    assert store.listed(store.root)
+
+
+def test_hidden_names_get_no_suffix(store):
+    path = store.create_file(store.root, ".pandora.yaml")
+    assert path.name == ".pandora.yaml"
+    assert store.rename(path, ".x.yaml").name == ".x.yaml"
