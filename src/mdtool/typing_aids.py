@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 
 LIST_ITEM = re.compile(
     r"^(?P<indent>[ \t]*)(?P<marker>[-*+]|(?P<number>\d{1,9})(?P<delim>[.)]))"
@@ -43,6 +44,23 @@ def next_list_prefix(line: str, column: int) -> str | None:
         marker = f"{int(match['number']) + 1}{match['delim']}"
     box = "[ ] " if match["box"] else ""
     return f"{match['indent']}{marker}{match['space']}{box}"
+
+
+UPDATED = re.compile(r"^updated:(?P<value>[ \t]*.*)$")
+
+
+def touch_updated(text: str, today: date) -> tuple[int, str, str] | None:
+    """Findet `updated:` im Frontmatter: (Zeile, alter Inhalt, neuer Inhalt)."""
+    match = FRONTMATTER.match(text)
+    if match is None:
+        return None
+    lines = text.split("\n")
+    for row in range(1, match[0].count("\n")):
+        line = lines[row]
+        if UPDATED.match(line):
+            new = f"updated: {today.isoformat()}"
+            return (row, line, new) if line != new else None
+    return None
 
 
 def frontmatter_as_code(text: str) -> str:

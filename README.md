@@ -28,6 +28,7 @@ mdtool ~/notizen/todo.md # Datei direkt anzeigen
 | `↑` `↓` | Auswahl bewegen, rechts erscheint die Vorschau |
 | `Enter` | Ordner auf-/zuklappen, bei Dateien in die Vorschau wechseln |
 | `Tab` | zwischen Baum und Vorschau wechseln |
+| `/` | suchen in Dateinamen und Text; `Enter` öffnet den Treffer im Editor |
 | `n` / `o` | neue Datei / neuer Ordner im ausgewählten Ordner |
 | `e` | bearbeiten (`Strg+S` speichert, `Esc` beendet) |
 | `E` | im externen Editor öffnen (`$VISUAL`, `$EDITOR`, sonst `nano`) |
@@ -42,6 +43,23 @@ mdtool ~/notizen/todo.md # Datei direkt anzeigen
   leeren Punkt beendet `Enter` die Liste. In Codeblöcken passiert nichts davon.
 - `[` wird zu `[ ]`, der Cursor steht direkt hinter der Klammer. Das nächste
   Zeichen ersetzt das Leerzeichen, `Leertaste` und `]` springen weiter.
+- Beim Speichern einer geänderten Datei wird `updated:` im Frontmatter auf das
+  heutige Datum gesetzt, falls das Feld vorhanden ist. Das gilt nicht für den
+  externen Editor.
+
+## Vorlagen
+
+Neue Markdown-Dateien beginnen mit Frontmatter, neue Ordner erhalten eine
+`.pandora.yaml`. Eigene Vorlagen gehören nach `~/.config/mdtool/templates/`:
+
+```bash
+mdtool --vorlagen        # kopiert die Standardvorlagen dorthin
+```
+
+Vorhandene Dateien werden dabei nicht überschrieben. Danach `datei.md` und
+`ordner.yaml` dort anpassen. In `datei.md` werden `{{title}}` und `{{date}}`
+ersetzt. Fehlt eine Datei dort, gilt die mitgelieferte Vorlage aus
+`src/mdtool/templates/`.
 
 ## Gut zu wissen
 
@@ -49,8 +67,8 @@ mdtool ~/notizen/todo.md # Datei direkt anzeigen
 - Angezeigt werden Ordner, Dateien mit `.md` oder `.markdown` sowie versteckte
   Dateien und Ordner (außer `.git`). Beim Anlegen wird `.md` ergänzt, außer der
   Name beginnt mit einem Punkt.
-- Neue Markdown-Dateien beginnen mit Frontmatter, neue Ordner enthalten eine
-  `.pandora.yaml`. Beide Vorlagen stehen im Ordner `src/mdtool/templates/`.
+- Die Suche berücksichtigt nur angezeigte Dateien bis 2 MB und höchstens
+  20 Treffer pro Datei.
 - Bestehendes wird beim Anlegen, Umbenennen und Verschieben nie überschrieben.
   Wurde eine Datei inzwischen außerhalb geändert, fragt das Speichern nach.
 - Löschen verschiebt in den Papierkorb. Ist er nicht nutzbar (unter WSL auf

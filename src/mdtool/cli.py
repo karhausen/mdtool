@@ -19,8 +19,25 @@ def main(argv: list[str] | None = None) -> int:
         default=".",
         help="Ordner oder Markdown-Datei (Standard: aktueller Ordner)",
     )
+    parser.add_argument(
+        "--vorlagen",
+        action="store_true",
+        help="Standardvorlagen nach ~/.config/mdtool/templates kopieren "
+        "(Vorhandenes bleibt unverändert)",
+    )
     parser.add_argument("--version", action="version", version=f"mdtool {__version__}")
     args = parser.parse_args(argv)
+
+    if args.vorlagen:
+        from .templating import copy_defaults
+
+        try:
+            folder, copied = copy_defaults()
+        except OSError as error:
+            parser.exit(1, f"mdtool: Kopieren fehlgeschlagen: {error}\n")
+        print(f"Vorlagenordner: {folder}")
+        print("Kopiert: " + (", ".join(copied) if copied else "nichts, alles schon da"))
+        return 0
 
     path = Path(args.pfad).expanduser()
     if not path.exists():

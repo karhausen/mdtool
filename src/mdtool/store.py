@@ -6,12 +6,13 @@ import hashlib
 import os
 import shutil
 import tempfile
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 from send2trash import send2trash
 
-from .templating import FOLDER_FILE, folder_settings, frontmatter
+from .templating import FOLDER_FILE, TemplateError, folder_settings, frontmatter
 
 MARKDOWN_SUFFIXES = {".md", ".markdown"}
 BOM = b"\xef\xbb\xbf"
@@ -35,6 +36,18 @@ class Document:
     newline: str
     bom: bool
     fingerprint: str
+
+
+SEARCH_MAX_BYTES = 2_000_000
+SEARCH_HITS_PER_FILE = 20
+
+
+@dataclass(frozen=True)
+class Hit:
+    path: Path
+    line: int | None  # None: Treffer im Dateinamen
+    column: int
+    text: str
 
 
 def is_markdown(path: Path) -> bool:
@@ -198,9 +211,12 @@ class Store:
     def create_file(self, folder: Path, name: str) -> Path:
         path = self._entry(self._target(folder) / self._file_name(name))
         try:
+            content = frontmatter(path.stem) if is_markdown(path) else ""
+        except TemplateError as error:
+            raise StoreError(str(error)) from error
+        try:
             with open(path, "x", encoding="utf-8", newline="\n") as handle:
-                if is_markdown(path):
-                    handle.write(frontmatter(path.stem))
+                handle.write(content)
         except FileExistsError:
             raise StoreError(f"„{path.name}“ existiert bereits.") from None
         except OSError as error:
@@ -217,6 +233,8 @@ class Store:
             raise StoreError(f"Anlegen fehlgeschlagen: {_reason(error)}") from error
         try:
             (path / FOLDER_FILE).write_text(folder_settings(), "utf-8", newline="\n")
+        except TemplateError as error:
+            raise StoreError(f"Ordner angelegt, aber {FOLDER_FILE} fehlt: {error}") from error
         except OSError as error:
             raise StoreError(
                 f"Ordner angelegt, aber {FOLDER_FILE} fehlt: {_reason(error)}"
@@ -296,6 +314,47 @@ class Store:
                 entry.unlink()
         except OSError as error:
             raise StoreError(f"Löschen fehlgeschlagen: {_reason(error)}") from error
+
+    def search(
+        self, query: str, stop: Callable[[], bool] = lambda: False
+    ) -> Iterator[Hit]:
+        """Sucht ohne Groß-/Kleinschreibung in Dateinamen und Inhalten."""
+        needle = query.casefold()
+        if not needle:
+            return
+        for base, dirs, files in os.walk(self.root):
+            if stop():
+                return
+            dirs[:] = sorted(
+                d for d in dirs if self.visible(Path(base) / d)
+                and not (Path(base) / d).is_symlink()
+            )
+            for name in sorted(files):
+                path = Path(base) / name
+                if not self.visible(path):
+                    continue
+                if needle in name.casefold():
+                    yield Hit(path, None, 0, self.rel(path))
+                yield from self._search_file(path, needle)
+
+    def _search_file(self, path: Path, needle: str) -> Iterator[Hit]:
+        try:
+            if path.stat().st_size > SEARCH_MAX_BYTES:
+                return
+            text = self.read(path).text
+        except (OSError, StoreError):
+            return
+        found = 0
+        for row, line in enumerate(text.split("\n")):
+            folded = line.casefold()
+            if needle not in folded:
+                continue
+            # casefold kann die Länge ändern (z. B. ß); dann Spalte 0.
+            column = folded.find(needle) if len(folded) == len(line) else 0
+            yield Hit(path, row, column, line)
+            found += 1
+            if found >= SEARCH_HITS_PER_FILE:
+                return
 
     def folders(self, limit: int = 5000) -> tuple[list[Path], bool]:
         """Alle sichtbaren Ordner; der zweite Wert meldet eine gekürzte Liste."""

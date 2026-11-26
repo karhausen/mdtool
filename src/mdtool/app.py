@@ -6,6 +6,7 @@ import asyncio
 import os
 import shlex
 import subprocess
+from datetime import date
 from collections.abc import Iterable
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -24,10 +25,11 @@ from textual.widgets import (
     Tree,
 )
 
-from .dialogs import ChoiceDialog, FolderDialog, NameDialog
+from .dialogs import ChoiceDialog, FolderDialog, NameDialog, SearchDialog
 from .store import (
     ConflictError,
     Document,
+    Hit,
     Store,
     StoreError,
     TrashError,
@@ -38,6 +40,7 @@ from .typing_aids import (
     frontmatter_as_code,
     in_code_block,
     next_list_prefix,
+    touch_updated,
 )
 
 PREVIEW_LIMIT = 500_000  # Zeichen; größere Dateien würden die Vorschau blockieren
@@ -160,6 +163,8 @@ class MdToolApp(App[None]):
     .dialog-title { width: 1fr; height: auto; margin-bottom: 1; }
     .dialog .hint { color: $text-muted; margin-top: 1; width: 1fr; }
     .dialog OptionList { height: auto; max-height: 14; }
+    .search { width: 100; height: 90%; }
+    .search OptionList { height: 1fr; max-height: 100%; }
     .buttons { height: auto; }
     .buttons Button { margin-right: 1; }
     """
@@ -168,7 +173,8 @@ class MdToolApp(App[None]):
         Binding("n", "new_file", "Neu"),
         Binding("o", "new_folder", "Ordner"),
         Binding("e", "edit", "Bearbeiten"),
-        Binding("E", "external_edit", "Extern"),
+        Binding("E", "external_edit", "Extern", show=False),
+        Binding("slash", "search", "Suche"),
         Binding("r", "rename", "Umbenennen"),
         Binding("m", "move", "Verschieben"),
         Binding("d", "delete", "Löschen"),
@@ -185,6 +191,7 @@ class MdToolApp(App[None]):
         self.editing: Path | None = None
         self.document: Document | None = None
         self.saved_text = ""
+        self.last_query = ""
 
     # -- Aufbau --------------------------------------------------------------
 
@@ -235,6 +242,7 @@ class MdToolApp(App[None]):
             "delete",
             "refresh",
             "toggle_hidden",
+            "search",
         }
         return not (action in blocked and self.editing is not None)
 
@@ -324,13 +332,15 @@ class MdToolApp(App[None]):
 
     def action_edit(self) -> None:
         path = self.selected_file()
-        if path is None:
-            return
+        if path is not None:
+            self._start_edit(path)
+
+    def _start_edit(self, path: Path) -> bool:
         try:
             document = self.store.read(path)
         except StoreError as error:
             self.fail(error)
-            return
+            return False
         self.workers.cancel_group(self, "preview")
         self.editor.load_text(document.text)
         # Der Editor kann seltene Sonderzeichen (z. B. Seitenvorschub) beim Laden
@@ -349,6 +359,7 @@ class MdToolApp(App[None]):
         self.editor.focus()
         self._update_path()
         self.refresh_bindings()
+        return True
 
     @on(TextArea.Changed)
     def _update_path(self) -> None:
@@ -362,9 +373,16 @@ class MdToolApp(App[None]):
         """Speichert; bei einem Konflikt wird nachgefragt."""
         if self.editing is None or self.document is None:
             return True
-        text = self.editor.text
-        if text == self.saved_text:
+        if self.editor.text == self.saved_text:
             return True
+        if is_markdown(self.editing):
+            change = touch_updated(self.editor.text, date.today())
+            if change is not None:
+                row, old, new = change
+                self.editor.replace(
+                    new, (row, 0), (row, len(old)), maintain_selection_offset=True
+                )
+        text = self.editor.text
         try:
             try:
                 document = self.store.write(self.editing, text, self.document)
@@ -577,6 +595,33 @@ class MdToolApp(App[None]):
     async def action_refresh(self) -> None:
         path = self.selected
         await self._show(path if path.exists() else self.store.root)
+
+    @work(exclusive=True, group="action")
+    async def action_search(self) -> None:
+        result = await self.push_screen_wait(
+            SearchDialog(self.store.search, self._hit_label, self.last_query)
+        )
+        if result is None:
+            return
+        self.last_query, hit = result
+        if not await self.tree_view.reveal(hit.path):
+            self.fail(f"{self.store.rel(hit.path)} ist nicht mehr da.")
+            return
+        if hit.line is None:
+            self.show_preview(hit.path)
+        elif self._start_edit(hit.path):
+            self.editor.move_cursor((hit.line, hit.column), center=True)
+            self.editor.move_cursor(
+                (hit.line, hit.column + len(self.last_query)), select=True
+            )
+
+    def _hit_label(self, hit: Hit) -> str:
+        if hit.line is None:
+            return f"▸ {hit.text}"
+        text = hit.text.strip()
+        start = max(0, hit.column - 30 - (len(hit.text) - len(hit.text.lstrip())))
+        snippet = ("…" if start else "") + text[start : start + 90]
+        return f"{self.store.rel(hit.path)}:{hit.line + 1}  {snippet}"
 
     @work(exclusive=True, group="action")
     async def action_toggle_hidden(self) -> None:
