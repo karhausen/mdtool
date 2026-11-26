@@ -63,6 +63,23 @@ def touch_updated(text: str, today: date) -> tuple[int, str, str] | None:
     return None
 
 
+HEADING = re.compile(r"^#[ \t]+(.+?)[ \t#]*$", re.M)
+
+
+def has_frontmatter(text: str) -> bool:
+    return FRONTMATTER.match(text) is not None
+
+
+def first_heading(text: str) -> str | None:
+    """Text der ersten Überschrift der obersten Ebene außerhalb von Codeblöcken."""
+    lines = text.split("\n")
+    for row, line in enumerate(lines):
+        match = HEADING.match(line)
+        if match and not in_code_block(lines[:row]):
+            return match[1]
+    return None
+
+
 def frontmatter_as_code(text: str) -> str:
     """Zeigt Frontmatter in der Vorschau als YAML-Block statt als Überschrift."""
     match = FRONTMATTER.match(text)

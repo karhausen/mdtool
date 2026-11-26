@@ -32,6 +32,7 @@ mdtool ~/notizen/todo.md # Datei direkt anzeigen
 | `n` / `o` | neue Datei / neuer Ordner im ausgewählten Ordner |
 | `e` | bearbeiten (`Strg+S` speichert, `Esc` beendet) |
 | `E` | im externen Editor öffnen (`$VISUAL`, `$EDITOR`, sonst `nano`) |
+| `f` | Frontmatter aus der Vorlage einfügen, falls die Markdown-Datei keines hat |
 | `r` / `m` / `d` | umbenennen / verschieben / löschen |
 | `.` | versteckte Dateien ein-/ausblenden |
 | `F5` | neu einlesen |
@@ -56,7 +57,11 @@ Neue Markdown-Dateien beginnen mit Frontmatter, neue Ordner erhalten eine
 mdtool --vorlagen        # kopiert die Standardvorlagen dorthin
 ```
 
-Vorhandene Dateien werden dabei nicht überschrieben. Danach `datei.md` und
+Bei bestehenden Markdown-Dateien ohne Frontmatter fügt `f` es ein. Der Titel
+ist dann die erste `#`-Überschrift, sonst der Dateiname. Die Datei öffnet sich
+dabei im Editor und wird erst mit `Strg+S` gespeichert.
+
+Beim Kopieren mit `--vorlagen` werden vorhandene Dateien nicht überschrieben. Danach `datei.md` und
 `ordner.yaml` dort anpassen. In `datei.md` werden `{{title}}` und `{{date}}`
 ersetzt. Fehlt eine Datei dort, gilt die mitgelieferte Vorlage aus
 `src/mdtool/templates/`.

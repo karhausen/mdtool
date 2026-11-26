@@ -6,8 +6,8 @@ import asyncio
 import os
 import shlex
 import subprocess
-from datetime import date
 from collections.abc import Iterable
+from datetime import date
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -35,9 +35,12 @@ from .store import (
     TrashError,
     is_markdown,
 )
+from .templating import TemplateError, frontmatter
 from .typing_aids import (
     as_code,
+    first_heading,
     frontmatter_as_code,
+    has_frontmatter,
     in_code_block,
     next_list_prefix,
     touch_updated,
@@ -178,6 +181,7 @@ class MdToolApp(App[None]):
         Binding("r", "rename", "Umbenennen"),
         Binding("m", "move", "Verschieben"),
         Binding("d", "delete", "Löschen"),
+        Binding("f", "frontmatter", "Frontmatter", show=False),
         Binding("full_stop", "toggle_hidden", "Versteckte", show=False),
         Binding("f5", "refresh", "Neu laden", show=False),
         Binding("q", "quit", "Ende"),
@@ -243,6 +247,7 @@ class MdToolApp(App[None]):
             "refresh",
             "toggle_hidden",
             "search",
+            "frontmatter",
         }
         return not (action in blocked and self.editing is not None)
 
@@ -360,6 +365,33 @@ class MdToolApp(App[None]):
         self._update_path()
         self.refresh_bindings()
         return True
+
+    def action_frontmatter(self) -> None:
+        path = self.selected_file()
+        if path is None:
+            return
+        if not is_markdown(path):
+            self.info("Frontmatter gibt es nur bei Markdown-Dateien.")
+            return
+        try:
+            text = self.store.read(path).text
+        except StoreError as error:
+            self.fail(error)
+            return
+        if has_frontmatter(text):
+            self.info("Die Datei hat bereits Frontmatter.")
+            return
+        try:
+            block = frontmatter(first_heading(text) or path.stem)
+        except TemplateError as error:
+            self.fail(error)
+            return
+        if not self._start_edit(path):
+            return
+        result = self.editor.replace(block, (0, 0), (0, 0))
+        self.editor.move_cursor(result.end_location)
+        self.editor.scroll_home(animate=False)
+        self.info("Frontmatter eingefügt. Strg+S speichert, Esc fragt nach.")
 
     @on(TextArea.Changed)
     def _update_path(self) -> None:
