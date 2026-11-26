@@ -186,7 +186,7 @@ def test_folders(store):
 
 
 def test_hidden_entries(store):
-    hidden = store.root / ".pandora.yaml"
+    hidden = store.root / ".policy.yaml"
     hidden.write_text("a: 1")
     inside = store.create_folder(store.root, ".versteckt") / "x.md"
     inside.write_text("")
@@ -201,6 +201,6 @@ def test_hidden_entries(store):
 
 
 def test_hidden_names_get_no_suffix(store):
-    path = store.create_file(store.root, ".pandora.yaml")
-    assert path.name == ".pandora.yaml"
+    path = store.create_file(store.root, ".policy.yaml")
+    assert path.name == ".policy.yaml"
     assert store.rename(path, ".x.yaml").name == ".x.yaml"

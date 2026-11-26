@@ -45,5 +45,5 @@ def test_hidden_non_markdown_file_stays_empty(tmp_path):
 
 def test_new_folder_has_settings(tmp_path):
     folder = Store(tmp_path).create_folder(tmp_path, "neu")
-    assert (folder / ".pandora.yaml").read_text("utf-8") == folder_settings()
-    assert [p.name for p in folder.iterdir()] == [".pandora.yaml"]
+    assert (folder / ".policy.yaml").read_text("utf-8") == folder_settings()
+    assert [p.name for p in folder.iterdir()] == [".policy.yaml"]

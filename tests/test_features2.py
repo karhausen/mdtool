@@ -94,7 +94,7 @@ def test_user_templates_win(tmp_path, isolated_config):
     note = store.create_file(tmp_path, "Plan")
     assert note.read_text() == f"# Plan ({date.today().isoformat()})\n"
     sub = store.create_folder(tmp_path, "x")
-    assert (sub / ".pandora.yaml").read_text() == "owner: ich\n"
+    assert (sub / ".policy.yaml").read_text() == "owner: ich\n"
 
 
 def test_partial_user_templates_fall_back(tmp_path, isolated_config):

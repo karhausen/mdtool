@@ -8,7 +8,7 @@ from datetime import date
 from importlib.resources import files
 from pathlib import Path
 
-FOLDER_FILE = ".pandora.yaml"
+FOLDER_FILE = ".policy.yaml"
 TEMPLATE_NAMES = ("datei.md", "ordner.yaml")
 
 YAML_WORDS = {"true", "false", "yes", "no", "on", "off", "null", "y", "n"}

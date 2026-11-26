@@ -50,7 +50,7 @@ mdtool ~/notizen/todo.md # Datei direkt anzeigen
 ## Vorlagen
 
 Neue Markdown-Dateien beginnen mit Frontmatter, neue Ordner erhalten eine
-`.pandora.yaml`. Eigene Vorlagen gehören nach `~/.config/mdtool/templates/`:
+`.policy.yaml`. Eigene Vorlagen gehören nach `~/.config/mdtool/templates/`:
 
 ```bash
 mdtool --vorlagen        # kopiert die Standardvorlagen dorthin
