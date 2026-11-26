@@ -11,7 +11,7 @@ from pathlib import Path
 
 from send2trash import send2trash
 
-from .templates import FOLDER_FILE, FOLDER_TEMPLATE, frontmatter
+from .templating import FOLDER_FILE, folder_settings, frontmatter
 
 MARKDOWN_SUFFIXES = {".md", ".markdown"}
 BOM = b"\xef\xbb\xbf"
@@ -216,7 +216,7 @@ class Store:
         except OSError as error:
             raise StoreError(f"Anlegen fehlgeschlagen: {_reason(error)}") from error
         try:
-            (path / FOLDER_FILE).write_text(FOLDER_TEMPLATE, "utf-8", newline="\n")
+            (path / FOLDER_FILE).write_text(folder_settings(), "utf-8", newline="\n")
         except OSError as error:
             raise StoreError(
                 f"Ordner angelegt, aber {FOLDER_FILE} fehlt: {_reason(error)}"

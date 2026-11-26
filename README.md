@@ -50,7 +50,7 @@ mdtool ~/notizen/todo.md # Datei direkt anzeigen
   Dateien und Ordner (außer `.git`). Beim Anlegen wird `.md` ergänzt, außer der
   Name beginnt mit einem Punkt.
 - Neue Markdown-Dateien beginnen mit Frontmatter, neue Ordner enthalten eine
-  `.pandora.yaml`. Beide Vorlagen stehen in `src/mdtool/templates.py`.
+  `.pandora.yaml`. Beide Vorlagen stehen im Ordner `src/mdtool/templates/`.
 - Bestehendes wird beim Anlegen, Umbenennen und Verschieben nie überschrieben.
   Wurde eine Datei inzwischen außerhalb geändert, fragt das Speichern nach.
 - Löschen verschiebt in den Papierkorb. Ist er nicht nutzbar (unter WSL auf

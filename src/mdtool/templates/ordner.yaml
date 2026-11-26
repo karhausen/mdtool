@@ -1,0 +1,7 @@
+owner:
+visibility: private
+
+security:
+  local_allowed: true
+  company_allowed: false
+  cloud_allowed: false
