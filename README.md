@@ -36,6 +36,7 @@ mdtool ~/notizen/todo.md # Datei direkt anzeigen
 | `r` / `m` / `d` | umbenennen / verschieben / löschen |
 | `.` | versteckte Dateien ein-/ausblenden |
 | `F5` | neu einlesen |
+| `h`, `?`, `F1` | Hilfe mit allen Tasten (`F1` auch im Editor) |
 | `q`, `Strg+Q` | beenden |
 
 ## Schreibhilfen im Editor
