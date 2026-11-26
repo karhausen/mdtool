@@ -28,11 +28,12 @@ mdtool ~/notizen/todo.md # Datei direkt anzeigen
 | `↑` `↓` | Auswahl bewegen, rechts erscheint die Vorschau |
 | `Enter` | Ordner auf-/zuklappen, bei Dateien in die Vorschau wechseln |
 | `Tab` | zwischen Baum und Vorschau wechseln |
-| `/` | suchen in Dateinamen und Text; `Enter` öffnet den Treffer im Editor |
+| `/` | suchen in Dateinamen und Text oder nach Feldern filtern; `Enter` öffnet den Treffer |
 | `n` / `o` | neue Datei / neuer Ordner im ausgewählten Ordner |
 | `e` | bearbeiten (`Strg+S` speichert, `Esc` beendet) |
 | `E` | im externen Editor öffnen (`$VISUAL`, `$EDITOR`, sonst `nano`) |
 | `f` | Frontmatter aus der Vorlage einfügen, falls die Markdown-Datei keines hat |
+| `s` / `p` | Status / Priorität im Frontmatter setzen |
 | `r` / `m` / `d` | umbenennen / verschieben / löschen |
 | `.` | versteckte Dateien ein-/ausblenden |
 | `F5` | neu einlesen |
@@ -45,6 +46,9 @@ mdtool ~/notizen/todo.md # Datei direkt anzeigen
   leeren Punkt beendet `Enter` die Liste. In Codeblöcken passiert nichts davon.
 - `[` wird zu `[ ]`, der Cursor steht direkt hinter der Klammer. Das nächste
   Zeichen ersetzt das Leerzeichen, `Leertaste` und `]` springen weiter.
+- `Strg+T` hakt die Checkbox der Zeile ab oder wieder auf. Aus einem
+  Listenpunkt ohne Checkbox oder einer normalen Zeile wird eine Checkbox. Mit
+  einer Markierung gilt das für alle markierten Zeilen.
 - Beim Speichern einer geänderten Datei wird `updated:` im Frontmatter auf das
   heutige Datum gesetzt, falls das Feld vorhanden ist. Das gilt nicht für den
   externen Editor.
@@ -66,6 +70,26 @@ ersetzt. Fehlt eine Datei dort, gilt die mitgelieferte Vorlage aus
 Bei bestehenden Markdown-Dateien ohne Frontmatter fügt `f` es ein. Der Titel
 ist dann die erste `#`-Überschrift, sonst der Dateiname. Die Datei öffnet sich
 dabei im Editor und wird erst mit `Strg+S` gespeichert.
+
+## Metadaten
+
+`s` setzt den Status (`active`, `waiting`, `done`, `archived`), `p` die
+Priorität (`low`, `normal`, `high`) der ausgewählten Datei. Der aktuelle Wert
+ist vorausgewählt. Die Datei wird sofort gespeichert, `updated:` wird dabei auf
+heute gesetzt. Fehlt das Feld, wird es am Ende des Frontmatters ergänzt.
+
+In der Suche (`/`) filtern Anfragen aus `feld:wert` das Frontmatter statt den
+Text zu durchsuchen:
+
+```text
+status:active                 Status enthält „active“
+tag:projekt priority:high     beide Bedingungen
+owner:                        Feld vorhanden, aber leer
+```
+
+Groß-/Kleinschreibung spielt keine Rolle, der Wert muss nur enthalten sein.
+`tag:` steht für `tags:`. Listen in der Form `[a, b]` und mit `- eintrag`
+werden verstanden. Sobald ein Wort kein `feld:wert` ist, wird normal gesucht.
 
 ## Gut zu wissen
 

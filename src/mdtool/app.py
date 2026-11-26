@@ -27,6 +27,7 @@ from textual.widgets import (
 
 from .dialogs import ChoiceDialog, FolderDialog, NameDialog, SearchDialog
 from .help import HelpDialog
+from .metadata import CHOICES, fields, set_field
 from .store import (
     ConflictError,
     Document,
@@ -44,6 +45,7 @@ from .typing_aids import (
     has_frontmatter,
     in_code_block,
     next_list_prefix,
+    toggle_checkbox,
     touch_updated,
 )
 
@@ -88,7 +90,23 @@ class Editor(TextArea):
     BINDINGS = [
         Binding("ctrl+s", "app.save", "Speichern", priority=True),
         Binding("escape", "app.finish_edit", "Fertig", priority=True),
+        Binding("ctrl+t", "toggle_checkbox", "Checkbox"),
     ]
+
+    def action_toggle_checkbox(self) -> None:
+        """Schaltet die Checkbox in der Zeile oder in allen markierten Zeilen um."""
+        start, end = sorted((self.selection.start, self.selection.end))
+        last = end[0] - (1 if end[0] > start[0] and end[1] == 0 else 0)
+        for row in range(start[0], last + 1):
+            line = self.document.get_line(row)
+            if not line.strip() and last > start[0]:
+                continue  # in einer Markierung bleiben Leerzeilen leer
+            new = toggle_checkbox(line)
+            self.replace(
+                new, (row, 0), (row, len(line)), maintain_selection_offset=True
+            )
+            if not line.strip():
+                self.move_cursor((row, len(new)))
 
     async def _on_key(self, event: events.Key) -> None:
         # Textual ruft danach von selbst TextArea._on_key auf, außer bei
@@ -172,7 +190,7 @@ class MdToolApp(App[None]):
     .help VerticalScroll { height: 1fr; }
     .search OptionList { height: 1fr; max-height: 100%; }
     .buttons { height: auto; }
-    .buttons Button { margin-right: 1; }
+    .buttons Button { margin-right: 1; min-width: 10; }
     """
 
     BINDINGS = [
@@ -185,6 +203,8 @@ class MdToolApp(App[None]):
         Binding("m", "move", "Verschieben"),
         Binding("d", "delete", "Löschen"),
         Binding("f", "frontmatter", "Frontmatter", show=False),
+        Binding("s", "set_field('status')", "Status", show=False),
+        Binding("p", "set_field('priority')", "Priorität", show=False),
         Binding("full_stop", "toggle_hidden", "Versteckte", show=False),
         Binding("f5", "refresh", "Neu laden", show=False),
         Binding("q", "quit", "Ende", show=False),
@@ -254,6 +274,7 @@ class MdToolApp(App[None]):
             "toggle_hidden",
             "search",
             "frontmatter",
+            "set_field",
         }
         return not (action in blocked and self.editing is not None)
 
@@ -402,6 +423,51 @@ class MdToolApp(App[None]):
         self.editor.move_cursor(result.end_location)
         self.editor.scroll_home(animate=False)
         self.info("Frontmatter eingefügt. Strg+S speichert, Esc fragt nach.")
+
+    @work(exclusive=True, group="action")
+    async def action_set_field(self, key: str) -> None:
+        path = self.selected_file()
+        if path is None:
+            return
+        if not is_markdown(path):
+            self.info("Status und Priorität gibt es nur bei Markdown-Dateien.")
+            return
+        try:
+            document = self.store.read(path)
+        except StoreError as error:
+            self.fail(error)
+            return
+        found = fields(document.text)
+        if found is None:
+            self.info("Die Datei hat kein Frontmatter. Mit f einfügen.")
+            return
+        current = (found.get(key) or [""])[0]
+        choices = CHOICES[key]
+        label = "Status" if key == "status" else "Priorität"
+        value = await self.push_screen_wait(
+            ChoiceDialog(
+                f"{label} von {self.store.rel(path)}",
+                [(choice, choice) for choice in choices],
+                initial=current if current in choices else None,
+            )
+        )
+        if value is None or value == current:
+            return
+        text = set_field(document.text, key, value)
+        if text is None:
+            return
+        change = touch_updated(text, date.today())
+        if change is not None:
+            lines = text.split("\n")
+            lines[change[0]] = change[2]
+            text = "\n".join(lines)
+        try:
+            self.store.write(path, text, document)
+        except StoreError as error:
+            self.fail(error)
+            return
+        self.show_preview(path)
+        self.info(f"{label}: {value}")
 
     @on(TextArea.Changed)
     def _update_path(self) -> None:

@@ -16,12 +16,14 @@ HELP = """\
 - `↑ ↓`: Auswahl bewegen, rechts erscheint die Vorschau
 - `Enter`: Ordner auf-/zuklappen, bei Dateien in die Vorschau wechseln
 - `Tab`: zwischen Baum und Vorschau wechseln
-- `/`: suchen in Dateinamen und Text
+- `/`: suchen in Dateinamen und Text, filtern mit feld:wert
 - `n`: neue Markdown-Datei im ausgewählten Ordner
 - `o`: neuer Ordner (mit .policy.yaml)
 - `e`: Datei bearbeiten
 - `E`: Datei im externen Editor öffnen ($VISUAL, $EDITOR, sonst nano)
 - `f`: Frontmatter einfügen, falls die Markdown-Datei keines hat
+- `s`: Status setzen (active, waiting, done, archived)
+- `p`: Priorität setzen (low, normal, high)
 - `r`: umbenennen
 - `m`: verschieben
 - `d`: löschen (in den Papierkorb)
@@ -37,6 +39,7 @@ HELP = """\
 - `Strg+Z` / `Strg+Y`: rückgängig / wiederholen
 - `Enter`: führt Listen und Checkboxen fort, im leeren Punkt endet die Liste
 - `[`: wird zu [ ], das nächste Zeichen ersetzt das Leerzeichen
+- `Strg+T`: Checkbox ab-/aufhaken, macht aus der Zeile sonst eine Checkbox
 - `F1`: diese Hilfe
 
 ## Suche und Dialoge
@@ -45,6 +48,9 @@ HELP = """\
 - `Enter`: übernehmen bzw. Treffer öffnen
 - `Esc`: abbrechen
 - `← →`: zwischen den Schaltflächen wechseln
+
+Filter in der Suche: `status:active`, `priority:high`, `tag:projekt`.
+Mehrere Bedingungen müssen alle passen, `owner:` findet leere Felder.
 
 ## Vorlagen
 

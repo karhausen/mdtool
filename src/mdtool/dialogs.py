@@ -48,12 +48,17 @@ class ChoiceDialog(ModalScreen[str | None]):
     ]
 
     def __init__(
-        self, title: str, choices: list[tuple[str, str]], danger: str | None = None
+        self,
+        title: str,
+        choices: list[tuple[str, str]],
+        danger: str | None = None,
+        initial: str | None = None,
     ) -> None:
         super().__init__()
         self._title_text = title
         self._choices = choices
         self._danger = danger
+        self._initial = initial
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="dialog"):
@@ -62,6 +67,10 @@ class ChoiceDialog(ModalScreen[str | None]):
                 for key, label in self._choices:
                     variant = "error" if key == self._danger else "default"
                     yield Button(label, id=key, variant=variant)
+
+    def on_mount(self) -> None:
+        if self._initial is not None:
+            self.query_one(f"#{self._initial}", Button).focus()
 
     @on(Button.Pressed)
     def _choose(self, event: Button.Pressed) -> None:
@@ -151,8 +160,13 @@ class SearchDialog(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="dialog search"):
-            yield Label("Suchen in Dateinamen und Text", classes="dialog-title")
-            yield Input(value=self._query, placeholder="mindestens 2 Zeichen …")
+            yield Label(
+                "Suchen in Dateinamen und Text, filtern mit feld:wert",
+                classes="dialog-title",
+            )
+            yield Input(
+                value=self._query, placeholder="Text oder z. B. status:active tag:projekt"
+            )
             yield Label("", id="status", classes="hint", markup=False)
             yield OptionList(markup=False)
             yield Label(

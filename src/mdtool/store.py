@@ -12,6 +12,7 @@ from pathlib import Path
 
 from send2trash import send2trash
 
+from .metadata import describe, fields, matches, parse_filter
 from .templating import FOLDER_FILE, TemplateError, folder_settings, frontmatter
 
 MARKDOWN_SUFFIXES = {".md", ".markdown"}
@@ -318,7 +319,11 @@ class Store:
     def search(
         self, query: str, stop: Callable[[], bool] = lambda: False
     ) -> Iterator[Hit]:
-        """Sucht ohne Groß-/Kleinschreibung in Dateinamen und Inhalten."""
+        """Sucht ohne Groß-/Kleinschreibung in Dateinamen und Inhalten.
+
+        Besteht die Anfrage nur aus `feld:wert`, wird im Frontmatter gefiltert.
+        """
+        filters = parse_filter(query)
         needle = query.casefold()
         if not needle:
             return
@@ -333,9 +338,26 @@ class Store:
                 path = Path(base) / name
                 if not self.visible(path):
                     continue
+                if filters is not None:
+                    yield from self._match_fields(path, filters)
+                    continue
                 if needle in name.casefold():
                     yield Hit(path, None, 0, self.rel(path))
                 yield from self._search_file(path, needle)
+
+    def _match_fields(
+        self, path: Path, filters: list[tuple[str, str]]
+    ) -> Iterator[Hit]:
+        if not is_markdown(path):
+            return
+        try:
+            if path.stat().st_size > SEARCH_MAX_BYTES:
+                return
+            found = fields(self.read(path).text)
+        except (OSError, StoreError):
+            return
+        if found is not None and matches(found, filters):
+            yield Hit(path, None, 0, f"{self.rel(path)}  {describe(found, filters)}")
 
     def _search_file(self, path: Path, needle: str) -> Iterator[Hit]:
         try:

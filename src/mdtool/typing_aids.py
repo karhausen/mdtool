@@ -92,3 +92,18 @@ def as_code(text: str, language: str = "") -> str:
     longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
     fence = "`" * max(3, longest + 1)
     return f"{fence}{language}\n{text.rstrip()}\n{fence}\n"
+
+
+def toggle_checkbox(line: str) -> str:
+    """Hakt eine Checkbox ab oder wieder auf; macht andere Zeilen zur Checkbox."""
+    match = LIST_ITEM.match(line)
+    if match is None:
+        indent = line[: len(line) - len(line.lstrip())]
+        return f"{indent}- [ ] {line.lstrip()}"
+    box = match["box"]
+    if box is None:
+        start = match.start("content")
+        return f"{line[:start]}[ ] {line[start:]}"
+    mark = " " if box[1] in "xX" else "x"
+    start = match.start("box")
+    return f"{line[:start + 1]}{mark}{line[start + 2:]}"
