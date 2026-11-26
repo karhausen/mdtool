@@ -57,14 +57,14 @@ Neue Markdown-Dateien beginnen mit Frontmatter, neue Ordner erhalten eine
 mdtool --vorlagen        # kopiert die Standardvorlagen dorthin
 ```
 
-Bei bestehenden Markdown-Dateien ohne Frontmatter fügt `f` es ein. Der Titel
-ist dann die erste `#`-Überschrift, sonst der Dateiname. Die Datei öffnet sich
-dabei im Editor und wird erst mit `Strg+S` gespeichert.
-
-Beim Kopieren mit `--vorlagen` werden vorhandene Dateien nicht überschrieben. Danach `datei.md` und
+Vorhandene Dateien werden dabei nicht überschrieben. Danach `datei.md` und
 `ordner.yaml` dort anpassen. In `datei.md` werden `{{title}}` und `{{date}}`
 ersetzt. Fehlt eine Datei dort, gilt die mitgelieferte Vorlage aus
 `src/mdtool/templates/`.
+
+Bei bestehenden Markdown-Dateien ohne Frontmatter fügt `f` es ein. Der Titel
+ist dann die erste `#`-Überschrift, sonst der Dateiname. Die Datei öffnet sich
+dabei im Editor und wird erst mit `Strg+S` gespeichert.
 
 ## Gut zu wissen
 
