@@ -35,6 +35,7 @@ mdtool ~/notizen/todo.md # Datei direkt anzeigen
 | `f` | Frontmatter aus der Vorlage einfügen, falls die Markdown-Datei keines hat |
 | `s` / `p` | Status / Priorität im Frontmatter setzen |
 | `r` / `m` / `d` | umbenennen / verschieben / löschen |
+| `g` | Git: Änderungen committen, holen und hochladen |
 | `.` | versteckte Dateien ein-/ausblenden |
 | `F5` | neu einlesen |
 | `h`, `?`, `F1` | Hilfe mit allen Tasten (`F1` auch im Editor) |
@@ -90,6 +91,26 @@ owner:                        Feld vorhanden, aber leer
 Groß-/Kleinschreibung spielt keine Rolle, der Wert muss nur enthalten sein.
 `tag:` steht für `tags:`. Listen in der Form `[a, b]` und mit `- eintrag`
 werden verstanden. Sobald ein Wort kein `feld:wert` ist, wird normal gesucht.
+
+## Git
+
+Liegt der Basisordner in einem Git-Repository, zeigt die Kopfzeile rechts den
+Branch und den Stand, z. B. `⎇ main ●3 ↑1` (3 Änderungen, 1 Commit noch nicht
+hochgeladen, `↓` für Commits auf dem Server). `g` öffnet den Abgleich:
+
+- **Abgleichen** (`Enter`) committet alle Änderungen im Basisordner mit der
+  angezeigten Nachricht, holt neue Commits (`git pull --rebase`) und lädt
+  hoch. Gelöschte Dateien werden mit committet.
+- **Nur holen** holt neue Commits, ohne etwas zu committen.
+
+Committet wird nur, was im Basisordner liegt, auch wenn das Repository größer
+ist. Git fragt dabei nie nach einem Passwort: Die Zugangsdaten müssen
+gespeichert sein (SSH-Agent oder Credential-Helper). Sonst erscheint eine
+Meldung, und ein einmaliges `git pull` im Terminal richtet das ein.
+
+Bei einem Konflikt wird das Holen sofort zurückgenommen. Dein Commit bleibt
+erhalten, den Konflikt löst du im Terminal. Ebenso bei laufendem Merge oder
+Rebase, ohne ausgecheckten Branch oder ohne Upstream.
 
 ## Gut zu wissen
 

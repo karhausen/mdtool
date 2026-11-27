@@ -27,6 +27,7 @@ HELP = """\
 - `r`: umbenennen
 - `m`: verschieben
 - `d`: löschen (in den Papierkorb)
+- `g`: Git: alles committen, holen und hochladen
 - `.`: versteckte Dateien ein-/ausblenden
 - `F5`: Baum neu einlesen
 - `h`, `?`, `F1`: diese Hilfe

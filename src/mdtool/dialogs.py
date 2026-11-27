@@ -244,3 +244,49 @@ class SearchDialog(ModalScreen):
     def _selected(self, event: OptionList.OptionSelected) -> None:
         event.stop()
         self.dismiss((self._query, self._hits[event.option_index]))
+
+
+class GitDialog(ModalScreen[tuple[str, str] | None]):
+    """Abgleich mit Git; liefert ("sync", Nachricht) oder ("pull", "")."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss(None)", "Abbrechen"),
+        Binding("left", "app.focus_previous", show=False),
+        Binding("right", "app.focus_next", show=False),
+    ]
+
+    def __init__(self, title: str, info: str, message: str) -> None:
+        super().__init__()
+        self._title_text = title
+        self._info = info
+        self._message = message
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="dialog"):
+            yield Label(self._title_text, classes="dialog-title", markup=False)
+            yield Label(self._info, markup=False)
+            yield Label("Commit-Nachricht:", classes="hint")
+            yield Input(value=self._message, select_on_focus=False)
+            with Horizontal(classes="buttons"):
+                yield Button("Abgleichen", id="sync", variant="primary")
+                yield Button("Nur holen", id="pull")
+                yield Button("Abbrechen", id="cancel")
+            yield Label(
+                "Enter: committen, holen, hochladen · Tab: Schaltflächen · Esc: abbrechen",
+                classes="hint",
+            )
+
+    @on(Input.Submitted)
+    def _submit(self, event: Input.Submitted) -> None:
+        event.stop()
+        self.dismiss(("sync", event.value))
+
+    @on(Button.Pressed)
+    def _choose(self, event: Button.Pressed) -> None:
+        event.stop()
+        if event.button.id == "sync":
+            self.dismiss(("sync", self.query_one(Input).value))
+        elif event.button.id == "pull":
+            self.dismiss(("pull", ""))
+        else:
+            self.dismiss(None)

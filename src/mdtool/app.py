@@ -25,7 +25,8 @@ from textual.widgets import (
     Tree,
 )
 
-from .dialogs import ChoiceDialog, FolderDialog, NameDialog, SearchDialog
+from .dialogs import ChoiceDialog, FolderDialog, GitDialog, NameDialog, SearchDialog
+from .gitsync import GitError, Repo, default_message
 from .help import HelpDialog
 from .metadata import CHOICES, fields, set_field
 from .store import (
@@ -173,7 +174,9 @@ class MdToolApp(App[None]):
     FileTree:focus { border: round $accent; }
     #right { width: 1fr; border: round $primary; }
     #right:focus-within { border: round $accent; }
-    #path { width: 1fr; height: 1; padding: 0 1; background: $panel; text-style: bold; }
+    #bar { height: 1; background: $panel; }
+    #path { width: 1fr; height: 1; padding: 0 1; text-style: bold; }
+    #git { width: auto; height: 1; padding: 0 1; color: $text-muted; }
     ContentSwitcher { height: 1fr; }
     Editor { border: none; height: 1fr; }
     Editor:focus { border: none; }
@@ -202,6 +205,7 @@ class MdToolApp(App[None]):
         Binding("r", "rename", "Umbenennen"),
         Binding("m", "move", "Verschieben"),
         Binding("d", "delete", "Löschen"),
+        Binding("g", "git", "Git", show=False),
         Binding("f", "frontmatter", "Frontmatter", show=False),
         Binding("s", "set_field('status')", "Status", show=False),
         Binding("p", "set_field('priority')", "Priorität", show=False),
@@ -222,6 +226,7 @@ class MdToolApp(App[None]):
         self.document: Document | None = None
         self.saved_text = ""
         self.last_query = ""
+        self.repo = Repo.find(store.root)
 
     # -- Aufbau --------------------------------------------------------------
 
@@ -229,7 +234,9 @@ class MdToolApp(App[None]):
         with Horizontal(id="main"):
             yield FileTree(self.store, id="tree")
             with Vertical(id="right"):
-                yield Label("", id="path", markup=False)
+                with Horizontal(id="bar"):
+                    yield Label("", id="path", markup=False)
+                    yield Label("", id="git", markup=False)
                 with ContentSwitcher(initial="preview"):
                     with VerticalScroll(id="preview"):
                         yield Markdown(id="markdown", open_links=False)
@@ -240,6 +247,7 @@ class MdToolApp(App[None]):
 
     async def on_mount(self) -> None:
         self.tree_view.focus()
+        self.refresh_git()
         if self.start is not None:
             await self.tree_view.reveal(self.start)
 
@@ -275,6 +283,7 @@ class MdToolApp(App[None]):
             "search",
             "frontmatter",
             "set_field",
+            "git",
         }
         return not (action in blocked and self.editing is not None)
 
@@ -467,6 +476,7 @@ class MdToolApp(App[None]):
             self.fail(error)
             return
         self.show_preview(path)
+        self.refresh_git()
         self.info(f"{label}: {value}")
 
     @on(TextArea.Changed)
@@ -513,6 +523,7 @@ class MdToolApp(App[None]):
         self.document = document
         self.saved_text = text
         self._update_path()
+        self.refresh_git()
         self.info("Gespeichert.")
         return True
 
@@ -566,12 +577,66 @@ class MdToolApp(App[None]):
         except (OSError, ValueError) as error:
             self.fail(f"Editor „{editor}“ konnte nicht gestartet werden: {error}")
         self.show_preview(path)
+        self.refresh_git()
 
     # -- Dateien und Ordner ----------------------------------------------------
 
     async def _show(self, path: Path) -> None:
         await self.tree_view.reveal(path)
         self.show_preview(path)
+        self.refresh_git()
+
+    # -- Git -------------------------------------------------------------------
+
+    @work(thread=True, exclusive=True, group="git-state")
+    def refresh_git(self) -> None:
+        """Zeigt Branch und offene Änderungen in der Kopfzeile."""
+        if self.repo is None:
+            return
+        try:
+            text = self.repo.state().summary
+        except GitError:
+            text = "⎇ ?"
+        self.call_from_thread(self.query_one("#git", Label).update, text)
+
+    @work(exclusive=True, group="action")
+    async def action_git(self) -> None:
+        if self.repo is None:
+            self.info("Der Basisordner liegt in keinem Git-Repository.")
+            return
+        repo = self.repo
+        try:
+            state = await asyncio.to_thread(repo.state)
+            repo.check(state, network=False)
+        except GitError as error:
+            self.fail(error)
+            return
+        info = [f"Branch {state.branch}"]
+        info.append(f"Upstream {state.upstream}" if state.upstream else "kein Upstream")
+        info.append(f"{state.changes} geänderte Einträge" if state.changes else "keine Änderungen")
+        if state.ahead or state.behind:
+            info.append(f"{state.ahead} voraus, {state.behind} zurück")
+        where = self.store.root.name or str(self.store.root)
+        if repo.top != self.store.root:
+            where += f" (Teil von {repo.top})"
+        choice = await self.push_screen_wait(
+            GitDialog(f"Git: {where}", " · ".join(info), default_message())
+        )
+        if choice is None:
+            return
+        command, message = choice
+        self.info("Git läuft …")
+        try:
+            if command == "sync":
+                done = await asyncio.to_thread(repo.sync, message.strip())
+                self.info("Git: " + ", ".join(done) + ".")
+            else:
+                await asyncio.to_thread(repo.fetch_only)
+                self.info("Git: geholt.")
+        except GitError as error:
+            self.fail(error)
+        path = self.selected
+        await self._show(path if path.exists() else self.store.root)
 
     @work(exclusive=True, group="action")
     async def action_new_file(self) -> None:
